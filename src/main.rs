@@ -1,4 +1,6 @@
-mod types;
+pub mod handlers;
+pub mod types;
+use handlers::{handle_echo, handle_generate};
 use types::{EchoOk, GenerateOk, InitOk, Message, Payload};
 
 type NodeID = String;
@@ -36,36 +38,26 @@ fn main() {
         let message = msg.unwrap();
         eprintln!("message: {:?}", message);
 
-        match message.body {
-            Payload::Echo(echo) => {
-                let reply = Message::new(
-                    node_id.clone(),
-                    message.src,
-                    Payload::EchoOk(EchoOk {
-                        msg_id: echo.msg_id,
-                        in_reply_to: echo.msg_id,
-                        echo: echo.echo,
-                    }),
-                );
-                let reply_json = serde_json::to_string(&reply).expect("unable to serialize json");
-                println!("{}", reply_json);
-            }
-            Payload::Generate(generate) => {
-                eprintln!("generate: {:?}", generate);
-                let ok_msg = GenerateOk::new(
-                    generate.msg_id,
-                    generate.msg_id,
-                    node_id.clone(),
-                    auto_incrementer.next(),
-                );
-                let reply = Message::new(node_id.clone(), message.src, Payload::GenerateOk(ok_msg));
-                let reply_json = serde_json::to_string(&reply).expect("unable to serialize json");
-                println!("{}", reply_json);
-            }
+        let value = match message.body {
+            Payload::Echo(echo) => Some(handle_echo(&message.dest, &message.src, echo)),
+            Payload::Generate(generate) => Some(handle_generate(
+                &node_id,
+                &message.dest,
+                &message.src,
+                auto_incrementer.next(),
+                generate,
+            )),
             _ => {
-                eprintln!("unknown message type");
+                eprintln!("unknown message type: {:?}", message.body);
+                None
             }
+        };
+
+        if let Some(value) = value {
+            eprintln!("sending: {}", value);
+            println!("{}", value);
         }
+
         input.clear();
     }
 }

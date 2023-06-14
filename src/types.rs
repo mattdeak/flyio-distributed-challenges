@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct EchoPayload {
+pub struct Echo {
     pub msg_id: usize,
     pub echo: String,
 }
@@ -71,7 +71,7 @@ impl GenerateOk {
 #[serde(tag = "type")]
 pub enum Payload {
     #[serde(rename = "echo")]
-    Echo(EchoPayload),
+    Echo(Echo),
     #[serde(rename = "echo_ok")]
     EchoOk(EchoOk),
     #[serde(rename = "init")]
