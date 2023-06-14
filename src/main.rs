@@ -1,61 +1,26 @@
-use serde::{Deserialize, Serialize};
+mod types;
+use types::{EchoOk, GenerateOk, InitOk, Message, Payload};
 
 type NodeID = String;
-
-#[derive(Serialize, Deserialize)]
-struct EchoPayload {
-    msg_id: usize,
-    echo: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct EchoOk {
-    msg_id: usize,
-    in_reply_to: usize,
-    echo: String,
-}
-
-#[derive(Serialize, Deserialize)]
-struct NodeInit {
-    msg_id: usize,
-    node_id: String,
-    node_ids: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct InitOk {
-    in_reply_to: usize,
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "type")]
-enum Payload {
-    #[serde(rename = "echo")]
-    Echo(EchoPayload),
-    #[serde(rename = "echo_ok")]
-    EchoOk(EchoOk),
-    #[serde(rename = "init")]
-    Init(NodeInit),
-    #[serde(rename = "init_ok")]
-    InitOk(InitOk),
-}
-
-#[derive(Serialize, Deserialize)]
-struct Message {
-    src: String,
-    dest: String,
-    body: Payload,
-}
 
 fn main() {
     // listen to stdin
     let mut input = String::new();
     let node_id = wait_for_init();
+    let auto_incrementer = &mut types::AutoIncrement::new();
+
     eprintln!("node id: {}", node_id);
+    eprintln!("beginning loop");
 
     loop {
+        eprintln!("waiting for input");
+
         std::io::stdin()
             .read_line(&mut input)
+            .map_err(|e| {
+                eprintln!("unable to read line: {}", e);
+                e
+            })
             .expect("unable to read line");
 
         // If Ok, then parse the json
@@ -69,18 +34,31 @@ fn main() {
         }
 
         let message = msg.unwrap();
+        eprintln!("message: {:?}", message);
 
         match message.body {
             Payload::Echo(echo) => {
-                let reply = Message {
-                    src: node_id.clone(),
-                    dest: message.src,
-                    body: Payload::EchoOk(EchoOk {
+                let reply = Message::new(
+                    node_id.clone(),
+                    message.src,
+                    Payload::EchoOk(EchoOk {
                         msg_id: echo.msg_id,
                         in_reply_to: echo.msg_id,
                         echo: echo.echo,
                     }),
-                };
+                );
+                let reply_json = serde_json::to_string(&reply).expect("unable to serialize json");
+                println!("{}", reply_json);
+            }
+            Payload::Generate(generate) => {
+                eprintln!("generate: {:?}", generate);
+                let ok_msg = GenerateOk::new(
+                    generate.msg_id,
+                    generate.msg_id,
+                    node_id.clone(),
+                    auto_incrementer.next(),
+                );
+                let reply = Message::new(node_id.clone(), message.src, Payload::GenerateOk(ok_msg));
                 let reply_json = serde_json::to_string(&reply).expect("unable to serialize json");
                 println!("{}", reply_json);
             }
@@ -117,6 +95,7 @@ fn wait_for_init() -> NodeID {
         println!("{}", response_json);
         node_id
     } else {
+        eprintln!("expected init message");
         panic!("expected init message");
     }
 }
