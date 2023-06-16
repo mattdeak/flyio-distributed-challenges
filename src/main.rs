@@ -1,3 +1,4 @@
+pub mod autoincrement;
 pub mod handlers;
 pub mod types;
 use handlers::{handle_echo, handle_generate};
@@ -9,7 +10,9 @@ fn main() {
     // listen to stdin
     let mut input = String::new();
     let node_id = wait_for_init();
-    let auto_incrementer = &mut types::AutoIncrement::new();
+    let auto_incrementer = &mut autoincrement::AutoIncrement::new();
+
+    let broadcast_router = &mut handlers::BroadcastRouter::new();
 
     eprintln!("node id: {}", node_id);
     eprintln!("beginning loop");
@@ -30,7 +33,7 @@ fn main() {
         let msg: Result<Message, _> = serde_json::from_str(&input);
 
         if let Err(e) = msg {
-            eprintln!("unable to parse json: {}", e);
+            eprintln!("unable to parse json for message {}: {}", &input, e);
             input.clear();
             continue;
         }
@@ -44,8 +47,23 @@ fn main() {
                 &node_id,
                 &message.dest,
                 &message.src,
-                auto_incrementer.next(),
+                auto_incrementer.increment(),
                 generate,
+            )),
+            Payload::Broadcast(broadcast) => Some(broadcast_router.handle_broadcast(
+                &node_id,
+                &message.src,
+                auto_incrementer.increment(),
+                broadcast,
+            )),
+            Payload::Read(read) => {
+                Some(broadcast_router.handle_read(&node_id, &message.src, read.msg_id))
+            }
+            Payload::Topology(topology) => Some(broadcast_router.handle_topology(
+                &node_id,
+                &message.src,
+                auto_incrementer.increment(),
+                topology,
             )),
             _ => {
                 eprintln!("unknown message type: {:?}", message.body);
@@ -70,7 +88,7 @@ fn wait_for_init() -> NodeID {
 
     let msg: Message = serde_json::from_str(&input)
         .map_err(|e| {
-            eprintln!("unable to parse json: {}", e);
+            eprintln!("unable to parse json from string {}. Err: {}", &input, e);
             e
         })
         .expect("unable to parse json");

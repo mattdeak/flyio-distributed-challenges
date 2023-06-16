@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -25,23 +27,16 @@ pub struct InitOk {
     pub in_reply_to: usize,
 }
 
-pub struct AutoIncrement {
-    id: usize,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Broadcast {
+    pub msg_id: usize,
+    pub message: usize,
 }
 
-impl AutoIncrement {
-    pub fn new() -> Self {
-        Self { id: 0 }
-    }
-
-    pub fn next(&mut self) -> usize {
-        self.id += 1;
-        self.id
-    }
-
-    pub fn current(&self) -> usize {
-        self.id
-    }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BroadcastOk {
+    pub msg_id: usize,
+    pub in_reply_to: usize,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -68,6 +63,30 @@ impl GenerateOk {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct Read {
+    pub msg_id: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ReadOk {
+    pub msg_id: usize,
+    pub in_reply_to: usize,
+    pub messages: Vec<usize>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Topology {
+    pub msg_id: usize,
+    pub topology: HashMap<String, Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TopologyOk {
+    pub msg_id: usize,
+    pub in_reply_to: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum Payload {
     #[serde(rename = "echo")]
@@ -82,6 +101,18 @@ pub enum Payload {
     Generate(Generate),
     #[serde(rename = "generate_ok")]
     GenerateOk(GenerateOk),
+    #[serde(rename = "broadcast")]
+    Broadcast(Broadcast),
+    #[serde(rename = "broadcast_ok")]
+    BroadcastOk(BroadcastOk),
+    #[serde(rename = "read")]
+    Read(Read),
+    #[serde(rename = "read_ok")]
+    ReadOk(ReadOk),
+    #[serde(rename = "topology")]
+    Topology(Topology),
+    #[serde(rename = "topology_ok")]
+    TopologyOk(TopologyOk),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
