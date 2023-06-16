@@ -1,8 +1,12 @@
 use std::collections::HashMap;
+use std::mem;
 
-use crate::types::{
-    Broadcast, BroadcastOk, Echo, EchoOk, Generate, GenerateOk, Message, Payload, ReadOk, Topology,
-    TopologyOk,
+use crate::{
+    autoincrement,
+    types::{
+        Broadcast, BroadcastOk, Echo, EchoOk, Generate, GenerateOk, Message, Payload, ReadOk,
+        Topology, TopologyOk,
+    },
 };
 
 pub fn handle_echo(src: &str, dest: &str, echo: Echo) -> String {
@@ -35,23 +39,37 @@ pub fn handle_generate(
     serde_json::to_string(&reply).expect("unable to serialize json")
 }
 
-pub struct BroadcastRouter {
+pub struct BroadcastRouter<'a> {
     pub messages: Vec<usize>,
-    pub topology: HashMap<String, Vec<String>>,
+    pub destinations: Vec<String>,
+    id_maker: &'a autoincrement::AutoIncrement,
+    node_id: &'a str,
 }
 
-impl Default for BroadcastRouter {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl BroadcastRouter {
-    pub fn new() -> Self {
+impl<'a> BroadcastRouter<'a> {
+    pub fn new(node_id: &'a String, id_maker: &'a autoincrement::AutoIncrement) -> Self {
         Self {
+            node_id,
             messages: Vec::new(),
-            topology: HashMap::new(),
+            id_maker,
+            destinations: Vec::new(),
         }
+    }
+
+    fn broadcast_single_message(&self, message: usize) {
+        self.destinations.iter().for_each(|dest| {
+            let msg = Message::new(
+                self.node_id.to_string(),
+                dest.clone(),
+                Payload::Broadcast(Broadcast {
+                    msg_id: self.id_maker.increment(),
+                    message,
+                }),
+            );
+            let reply = serde_json::to_string(&msg).expect("unable to serialize json");
+            eprintln!("sending: {}", reply);
+            println!("{}", reply);
+        });
     }
 
     pub fn handle_broadcast(
@@ -61,7 +79,10 @@ impl BroadcastRouter {
         msg_id: usize,
         broadcast: Broadcast,
     ) -> String {
-        self.messages.push(broadcast.message);
+        if !self.messages.contains(&broadcast.message) {
+            self.messages.push(broadcast.message);
+            self.broadcast_single_message(broadcast.message);
+        }
 
         let ok_msg = BroadcastOk {
             msg_id,
@@ -94,12 +115,17 @@ impl BroadcastRouter {
         msg_id: usize,
         topology: Topology,
     ) -> String {
-        self.topology = topology.topology;
+        self.destinations = topology
+            .topology
+            .get(self.node_id)
+            .expect("Unable to find source node: {}")
+            .clone();
 
         let ok_msg = TopologyOk {
             msg_id,
             in_reply_to: msg_id,
         };
+
         let reply = Message::new(
             src.to_string(),
             dest.to_string(),

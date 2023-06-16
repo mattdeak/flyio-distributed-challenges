@@ -1,19 +1,22 @@
+use std::sync::Mutex;
+
 pub struct AutoIncrement {
-    id: usize,
+    id: Mutex<usize>,
 }
 
 impl AutoIncrement {
     pub fn new() -> Self {
-        Self { id: 0 }
+        Self { id: Mutex::new(0) }
     }
 
-    pub fn increment(&mut self) -> usize {
-        self.id += 1;
-        self.id
+    pub fn increment(&self) -> usize {
+        let mut id = self.id.lock().unwrap();
+        *id += 1;
+        *id
     }
 
     pub fn current(&self) -> usize {
-        self.id
+        *self.id.lock().unwrap()
     }
 }
 

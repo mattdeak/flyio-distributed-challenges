@@ -10,9 +10,10 @@ fn main() {
     // listen to stdin
     let mut input = String::new();
     let node_id = wait_for_init();
-    let auto_incrementer = &mut autoincrement::AutoIncrement::new();
 
-    let broadcast_router = &mut handlers::BroadcastRouter::new();
+    let auto_incrementer = autoincrement::AutoIncrement::new();
+
+    let mut broadcast_router = handlers::BroadcastRouter::new(&node_id, &auto_incrementer);
 
     eprintln!("node id: {}", node_id);
     eprintln!("beginning loop");
@@ -56,6 +57,10 @@ fn main() {
                 auto_incrementer.increment(),
                 broadcast,
             )),
+            Payload::BroadcastOk(broadcast_ok) => {
+                eprintln!("got an ok but not sure what to do with it");
+                None
+            }
             Payload::Read(read) => {
                 Some(broadcast_router.handle_read(&node_id, &message.src, read.msg_id))
             }
